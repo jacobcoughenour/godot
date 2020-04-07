@@ -1,0 +1,3 @@
+<component name="DependencyValidationManager">
+  <scope name="godot engine" pattern="file[lib]:submodules/godot//*" />
+</component>

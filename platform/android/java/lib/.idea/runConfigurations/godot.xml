@@ -1,0 +1,7 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="godot" type="CMakeRunConfiguration" factoryName="Application" nameIsGenerated="true" PROGRAM_PARAMS="-e -w" WORKING_DIR="file://$PROJECT_DIR$/../../../../../.." PASS_PARENT_ENVS_2="true" PROJECT_NAME="godot" TARGET_NAME="godot" CONFIG_NAME="Debug" RUN_PATH="$PROJECT_DIR$/../../../../bin/godot.x11.opt.tools.64.mono">
+    <method v="2">
+      <option name="ToolBeforeRunTask" enabled="true" actionId="Tool_External Tools_scons build tools w/mono enabled" />
+    </method>
+  </configuration>
+</component>

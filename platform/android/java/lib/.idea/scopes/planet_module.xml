@@ -1,0 +1,3 @@
+<component name="DependencyValidationManager">
+  <scope name="planet module" pattern="file[lib]:submodules/godot/modules/planet//*&amp;&amp;!file:submodules/godot/modules/planet/*.o" />
+</component>

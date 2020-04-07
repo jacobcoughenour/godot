@@ -1,0 +1,3 @@
+<component name="DependencyValidationManager">
+  <scope name="only source" pattern="file:*.cs||file:*.gd||file:*.py||file:*.cpp||file:*.h" />
+</component>
