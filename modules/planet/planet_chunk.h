@@ -12,13 +12,11 @@ class PlanetChunk : public MeshInstance {
 
 	Ref<Material> material;
 
-	PlanetSide planetSide;
-	Vector3i chunkPosition;
 	ChunkData *chunkData;
 
 public:
 	PlanetChunk();
-	PlanetChunk(const PlanetSide planetSide, const Vector3i& chunkPosition, ChunkData &chunkData);
+	PlanetChunk(ChunkData &chunkData);
 	~PlanetChunk();
 
 	void set_material(const Ref<Material> &p_material);

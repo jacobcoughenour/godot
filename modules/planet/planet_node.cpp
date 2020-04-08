@@ -103,8 +103,11 @@ void PlanetNode::_ready() {
 			for (int x = 0; x < side_chunk_count; x++) {
 				for (int z = 0; z < side_chunk_count; z++) {
 
-					Vector3i vec = Vector3i(x, layer, z);
-					show_chunk(static_cast<PlanetSide>(side),vec);
+					ChunkPosition pos = ChunkPosition();
+					pos.side = static_cast<PlanetSide>(side);
+					pos.relative_position = Vector3i(x, layer, z);
+
+					show_chunk(pos);
 
 					total_chunk_count++;
 				}
@@ -129,30 +132,30 @@ void PlanetNode::unload_chunks() {
 
 }
 
-void PlanetNode::show_chunk(PlanetSide planet_side, Vector3i &chunk_pos) {
+void PlanetNode::show_chunk(ChunkPosition &chunk_pos) {
 
 	PlanetChunk *chunk;
 
 	// find existing chunk renderer
-	auto chunk_renderer = chunk_renderers[planet_side].find(chunk_pos);
+	auto chunk_renderer = chunk_renderers[chunk_pos.side].find(chunk_pos.relative_position);
 
 	// no existing chunk renderer for this chunk
 	if (chunk_renderer == NULL) {
 
 		// get chunk data
 		// (this also handles chunk generation)
-		ChunkData *chunk_data = data->get_chunk(planet_side, chunk_pos);
+		ChunkData *chunk_data = data->get_chunk(chunk_pos);
 
 		// create a new chunk renderer
 		// todo: recycle existing chunk renderer from unloaded chunk
-		chunk = memnew(PlanetChunk(planet_side, chunk_pos, *chunk_data));
+		chunk = memnew(PlanetChunk(*chunk_data));
 		chunk->set_material(material);
 
 		// add chunk renderer to planet node
 		add_child(chunk);
 
 		// register it to the pool of chunk renderers
-		chunk_renderers[planet_side].insert(chunk_pos, chunk);
+		chunk_renderers[chunk_pos.side].insert(chunk_pos.relative_position, chunk);
 
 	}
 	// found existing chunk renderer

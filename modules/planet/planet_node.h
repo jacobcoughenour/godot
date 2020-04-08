@@ -37,7 +37,7 @@ private:
 	// bool _get(const StringName &p_name, Variant &r_ret) const;
 	// void _get_property_list(List<PropertyInfo> *p_list) const;
 	void unload_chunks();
-	void show_chunk(PlanetSide planet_side, Vector3i &chunk_pos);
+	void show_chunk(ChunkPosition &chunk_pos);
 
 };
 

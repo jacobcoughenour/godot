@@ -31,10 +31,14 @@ extern const unsigned char block_textures[BLOCK_TYPE_COUNT][Cube::DIRECTION_COUN
 static const int CHUNK_SIZE = 16;
 static const int CHUNK_BLOCK_COUNT = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE;
 
-struct ChunkData {
+struct ChunkPosition {
 	PlanetSide side;
-	Vector3i position;
-	BlockType data[CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE];
+	Vector3i relative_position;
+};
+
+struct ChunkData {
+	ChunkPosition position;
+	BlockType data[CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE]{};
 };
 
 #endif //GODOT_PLANET_CHUNK_DATA_H

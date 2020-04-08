@@ -6,7 +6,7 @@ PlanetChunk::PlanetChunk() {
 
 }
 
-PlanetChunk::PlanetChunk(const PlanetSide planetSide, const Vector3i& chunkPosition, ChunkData &chunkData) : planetSide(planetSide), chunkPosition(chunkPosition) {
+PlanetChunk::PlanetChunk(ChunkData &chunkData) {
 	this->chunkData = &chunkData;
 }
 
@@ -77,14 +77,17 @@ void PlanetChunk::_ready() {
 	PoolVector3Array normals;
 	PoolIntArray indices;
 
-	Vector3i chunk_offset = CHUNK_SIZE * chunkPosition;
+	Vector3i chunk_offset = CHUNK_SIZE * chunkData->position.relative_position;
+	PlanetSide planet_side = chunkData->position.side;
 
 	int face_voxel_count = 0;
 	int half_voxel_count = 0;
 	float step;
 
+	Vector3 origin = Vector3(0, 0, 0);
+
 	Vector3 x_dir;
-	Vector3 y_dir = Cube::side_axes[planetSide][Cube::SIDE_AXIS_Y];
+	Vector3 y_dir = Cube::side_axes[planet_side][Cube::SIDE_AXIS_Y];
 	Vector3 z_dir;
 
 	if (chunk_offset.y > 0) {
@@ -92,8 +95,20 @@ void PlanetChunk::_ready() {
 		half_voxel_count = (int)(max_face_voxel_count(chunk_offset.y)) / 2;
 		step = 1.0f / (float)(half_voxel_count);
 
-		x_dir = Cube::side_axes[planetSide][Cube::SIDE_AXIS_X] * step;
-		z_dir = Cube::side_axes[planetSide][Cube::SIDE_AXIS_Z] * step;
+		x_dir = Cube::side_axes[planet_side][Cube::SIDE_AXIS_X] * step;
+		z_dir = Cube::side_axes[planet_side][Cube::SIDE_AXIS_Z] * step;
+
+//		origin = x_dir * (float)(chunk_offset.x - half_voxel_count);
+//		origin += z_dir * (float)(chunk_offset.z - half_voxel_count);
+//		origin += y_dir;
+//
+//		// map position to sphere
+//		map_to_sphere(origin);
+//
+//		// now scale the vec to match the layer depth
+//		origin *= chunk_offset.y;
+//
+//		this->set_translation(origin);
 	}
 
 	for (int layer = 0; layer < CHUNK_SIZE; layer++) {
@@ -103,8 +118,8 @@ void PlanetChunk::_ready() {
 			half_voxel_count = face_voxel_count / 2;
 			step = 1.0f / (float)(half_voxel_count);
 
-			x_dir = Cube::side_axes[planetSide][Cube::SIDE_AXIS_X] * step;
-			z_dir = Cube::side_axes[planetSide][Cube::SIDE_AXIS_Z] * step;
+			x_dir = Cube::side_axes[planet_side][Cube::SIDE_AXIS_X] * step;
+			z_dir = Cube::side_axes[planet_side][Cube::SIDE_AXIS_Z] * step;
 		}
 
 		for (int x = 0; x < face_voxel_count; x++) {
@@ -140,7 +155,7 @@ void PlanetChunk::_ready() {
 					// now scale the vec to match the layer depth
 					vert *= chunk_offset.y + layer + Cube::corner_positions[corner].y;
 
-					mapped_corners_positions[corner] = vert;
+					mapped_corners_positions[corner] = vert - origin;
 				}
 
 				for (int side = 0; side < Cube::SIDE_COUNT; side++) {
@@ -163,6 +178,8 @@ void PlanetChunk::_ready() {
 							} else if (neighbor_block_type != BLOCK_AIR && neighbor_block_type != BLOCK_WATER) {
 								continue;
 							}
+						} else {
+							continue;
 						}
 					}
 

@@ -23,10 +23,10 @@ public:
 	void set_generator(const Ref<PlanetGenerator> &p_generator);
 	Ref<PlanetGenerator> get_generator() const;
 
-	ChunkData* get_chunk(PlanetSide planet_side, Vector3i &chunk_position);
+	ChunkData* get_chunk(ChunkPosition &chunk_position);
 
-	BlockType get_block(PlanetSide planet_side, Vector3i &chunk_position, Vector3i &block_position);
-	BlockType get_block(ChunkData* chunkData, Vector3i &block_position);
+	BlockType get_block(ChunkPosition &chunk_position, Vector3i &block_position);
+	BlockType get_block(ChunkData *chunkData, Vector3i &block_position);
 
 protected:
 	static void _bind_methods();

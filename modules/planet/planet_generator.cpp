@@ -8,7 +8,7 @@
 PlanetGenerator::PlanetGenerator() {
 }
 
-void PlanetGenerator::generate_chunk(PlanetSide planet_side, Vector3i &chunk_pos, ChunkData &chunk_data, int lod) {
+void PlanetGenerator::generate_chunk(ChunkData &chunk_data, int lod) {
 
 	if (_noise.is_null()) {
 		print_error("PlanetGenerator: noise is null");
@@ -20,7 +20,8 @@ void PlanetGenerator::generate_chunk(PlanetSide planet_side, Vector3i &chunk_pos
 	_noise->set_octaves(4);
 	_noise->set_persistence(0.5);
 
-	Vector3i chunk_offset = CHUNK_SIZE * chunk_pos;
+	Vector3i chunk_offset = CHUNK_SIZE * chunk_data.position.relative_position;
+	PlanetSide planet_side = chunk_data.position.side;
 
 	int face_voxel_count = 0;
 	int half_voxel_count = 0;

@@ -16,7 +16,7 @@ public:
 	void set_noise(Ref<OpenSimplexNoise> noise);
 	Ref<OpenSimplexNoise> get_noise() const;
 
-	void generate_chunk(PlanetSide planet_side, Vector3i &chunk_pos, ChunkData &chunk_data, int lod);
+	void generate_chunk(ChunkData &chunk_data, int lod);
 
 protected:
 	static void _bind_methods();

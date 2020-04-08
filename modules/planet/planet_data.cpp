@@ -2,6 +2,7 @@
 #include <map>
 #include <core/os/os.h>
 #include <core/core_string_names.h>
+#include <modules/planet/math/math.h>
 #include "planet_data.h"
 
 PlanetData::PlanetData() {
@@ -35,17 +36,18 @@ Ref<PlanetGenerator> PlanetData::get_generator() const {
 	return generator;
 }
 
-ChunkData* PlanetData::get_chunk(PlanetSide planet_side, Vector3i &chunk_position) {
+ChunkData* PlanetData::get_chunk(ChunkPosition &chunk_position) {
 
-	auto *chunk_entry = sides[planet_side].find(chunk_position);
+	auto *chunk_entry = sides[chunk_position.side].find(chunk_position.relative_position);
 
 	if (chunk_entry == nullptr) {
 
 		ChunkData *chunk_data = new ChunkData();
+		chunk_data->position = chunk_position;
 
-		generator->generate_chunk(planet_side, chunk_position, *chunk_data, 0);
+		generator->generate_chunk(*chunk_data, 0);
 
-		sides[planet_side].insert(chunk_position, chunk_data);
+		sides[chunk_position.side].insert(chunk_position.relative_position, chunk_data);
 
 		return chunk_data;
 	}
@@ -54,26 +56,42 @@ ChunkData* PlanetData::get_chunk(PlanetSide planet_side, Vector3i &chunk_positio
 
 }
 
-//ChunkData* PlanetData::get_neighboring_chunk(ChunkData* chunkData, Cube::Side side) {
+
+const Vector3i CHUNK_ZERO = Vector3i(0);
+const Vector3i CHUNK_MAX = Vector3i(CHUNK_SIZE);
+
+//ChunkData* PlanetData::get_neighboring_chunk(ChunkPosition &chunk_position, Cube::Side side) {
+
+//	Vector3i neighbor_pos = block_position + Cube::directions_i[side];
+
+//}
+
+//BlockType PlanetData::get_neighboring_block(ChunkPosition &chunk_position, Vector3i &block_position, Cube::Side side) {
 //
-//	Vector3i direction = Cube::directions_i[side];
+//	Vector3i neighbor_pos = block_position + Cube::directions_i[side];
 //
-//	// if inside the same face
+//	if (chunk_position.relative_position.y == 0) {
+//
+//		max_face_voxel_count(neighbor_pos.y);
 //
 //
+//	}
+//
+//	if (neighbor_pos.is_contained_in(CHUNK_ZERO, CHUNK_MAX)) {
+//
+//
+//
+//	}
 //
 //
 //}
 
-const Vector3i V3_ZERO = Vector3i(0);
-const Vector3i V3_MAX = Vector3i(CHUNK_SIZE);
-
-BlockType PlanetData::get_block(PlanetSide planet_side, Vector3i &chunk_position, Vector3i &block_position) {
-	ChunkData *chunk_data = get_chunk(planet_side, chunk_position);
+BlockType PlanetData::get_block(ChunkPosition &chunk_position, Vector3i &block_position) {
+	ChunkData* chunk_data = get_chunk(chunk_position);
 	return get_block(chunk_data, block_position);
 }
 
-BlockType PlanetData::get_block(ChunkData* chunk_data, Vector3i &block_position) {
+BlockType PlanetData::get_block(ChunkData *chunk_data, Vector3i &block_position) {
 	return chunk_data->data[block_position.x][block_position.y][block_position.z];
 }
 
