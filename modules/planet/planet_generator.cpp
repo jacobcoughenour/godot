@@ -16,85 +16,104 @@ void PlanetGenerator::generate_chunk(ChunkData &chunk_data, int lod) {
 	}
 
 	_noise->set_seed(40);
-	_noise->set_period(1);
+	_noise->set_period(0.4);
 	_noise->set_octaves(4);
-	_noise->set_persistence(0.5);
+	_noise->set_persistence(0.7);
+
+	float offset = 8.0f;
+	float difference = 64.0f;
+	float sea_level = offset * difference;
 
 	Vector3i chunk_offset = CHUNK_SIZE * chunk_data.position.relative_position;
-	PlanetSide planet_side = chunk_data.position.side;
 
 	int face_voxel_count = 0;
+
+	if (chunk_offset.y == 0) {
+		for (int y = 0; y < CHUNK_SIZE; y++) {
+			face_voxel_count = (int) max_face_voxel_count(y);
+			for (int x = 0; x < face_voxel_count; x++) {
+				for (int z = 0; z < face_voxel_count; z++) {
+					chunk_data.data[x][y][z] = BLOCK_STONE;
+				}
+			}
+		}
+
+		return;
+	}
+
+	if (chunk_offset.y > (offset + 1) * difference) {
+		return;
+	}
+
+	PlanetSide planet_side = chunk_data.position.side;
+
 	int half_voxel_count = 0;
 	float step;
 
-	Vector3 x_dir;
+	face_voxel_count = CHUNK_SIZE;
+	half_voxel_count = (int)(max_face_voxel_count(chunk_offset.y)) / 2;
+	step = 1.0f / (float)(half_voxel_count);
+
+	Vector3 x_dir = Cube::side_axes[planet_side][Cube::SIDE_AXIS_X] * step;
 	Vector3 y_dir = Cube::side_axes[planet_side][Cube::SIDE_AXIS_Y];
-	Vector3 z_dir;
+	Vector3 z_dir = Cube::side_axes[planet_side][Cube::SIDE_AXIS_Z] * step;
 
-	if (chunk_offset.y > 0) {
-		face_voxel_count = CHUNK_SIZE;
-		half_voxel_count = (int)(max_face_voxel_count(chunk_offset.y)) / 2;
-		step = 1.0f / (float)(half_voxel_count);
+	for (int x = 0; x < face_voxel_count; x++) {
+		for (int z = 0; z < face_voxel_count; z++) {
 
-		x_dir = Cube::side_axes[planet_side][Cube::SIDE_AXIS_X] * step;
-		z_dir = Cube::side_axes[planet_side][Cube::SIDE_AXIS_Z] * step;
-	}
+			// rotate the corners to match the face x and z directions
+			Vector3 vert = x_dir * (float)(chunk_offset.x + x - half_voxel_count);
+			vert += z_dir * (float)(chunk_offset.z + z - half_voxel_count);
 
-	for (int y = 0; y < CHUNK_SIZE; y++) {
+			// since we are mapping a 2d (xz) plane to the sphere
+			// we move the vec 1 unit in the y direction to align it
+			// to the unit cube
+			vert += y_dir;
 
-		if (chunk_offset.y == 0) {
-			face_voxel_count = (int) max_face_voxel_count(y);
-			half_voxel_count = face_voxel_count / 2;
-			step = 1.0f / (float)(half_voxel_count);
+			// map position to sphere
+			map_to_sphere(vert);
 
-			x_dir = Cube::side_axes[planet_side][Cube::SIDE_AXIS_X] * step;
-			z_dir = Cube::side_axes[planet_side][Cube::SIDE_AXIS_Z] * step;
-		}
+			vert.normalize();
 
-		for (int x = 0; x < face_voxel_count; x++) {
-			for (int z = 0; z < face_voxel_count; z++) {
-
-				// rotate the corners to match the face x and z directions
-				Vector3 vert = x_dir * (float)(chunk_offset.x + x - half_voxel_count);
-						vert += z_dir * (float)(chunk_offset.z + z - half_voxel_count);
-
-				// since we are mapping a 2d (xz) plane to the sphere
-				// we move the vec 1 unit in the y direction to align it
-				// to the unit cube
-				vert += y_dir;
-
-				// map position to sphere
-				map_to_sphere(vert);
-
-				vert.normalize();
-
-				// now scale the vec to match the layer depth
+			// now scale the vec to match the layer depth
 //				vert *= (float) y;
 
-				float val = _noise->get_noise_3d(vert.x, vert.y, vert.z);
+			float val = _noise->get_noise_3d(vert.x, vert.y, vert.z);
 
-				val += 1.0f;
-				val *= 64.0f;
+			val += offset;
+			val *= difference;
 
-//				OS::get_singleton()->print("%f\n", val);
+			// skip empty columns
+			if (chunk_offset.y > sea_level && chunk_offset.y - val > 0.0f) {
+				continue;
+			}
+
+			bool prev_was_air = true;
+
+			// starts at the top of the chunk + 1 to get the neighboring block
+			for (int y = CHUNK_SIZE; y >= 0; y--) {
 
 				int block_y = chunk_offset.y + y;
-				float diff = val - block_y;
+				float diff = block_y - val;
+				float sea_diff = block_y - sea_level;
 
 				// air/water
-				BlockType blockType = block_y < 64 ? BLOCK_WATER : BLOCK_AIR;
-//				BlockType blockType = BLOCK_AIR;
+				BlockType blockType = sea_diff <= 0.0f ? BLOCK_WATER : BLOCK_AIR;
 
 				// solid terrain
-				if (diff >= 0.0f) {
-					if (diff <= 1.0f) {
-						blockType = diff <= 0.5f ? BLOCK_GRASS : BLOCK_DIRT;
+				if (diff <= 0.0f) {
+					if (diff >= -3.0f) {
+						blockType = sea_diff < 2.5f ? BLOCK_SAND :
+										prev_was_air ? BLOCK_GRASS : BLOCK_DIRT;
 					} else {
 						blockType = BLOCK_STONE;
 					}
 				}
 
-				chunk_data.data[x][y][z] = blockType;
+				prev_was_air = blockType == BLOCK_AIR;
+
+				if (y < CHUNK_SIZE)
+					chunk_data.data[x][y][z] = blockType;
 			}
 		}
 	}

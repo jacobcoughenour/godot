@@ -1,9 +1,8 @@
 
-#include <modules/planet/math/math.h>
 #include "planet_chunk.h"
+#include <modules/planet/math/math.h>
 
 PlanetChunk::PlanetChunk() {
-
 }
 
 PlanetChunk::PlanetChunk(ChunkData &chunkData) {
@@ -17,6 +16,8 @@ void PlanetChunk::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_material", "material"), &PlanetChunk::set_material);
 	ClassDB::bind_method(D_METHOD("get_material"), &PlanetChunk::get_material);
+	ClassDB::bind_method(D_METHOD("set_transparent_material", "transparent_material"), &PlanetChunk::set_transparent_material);
+	ClassDB::bind_method(D_METHOD("get_transparent_material"), &PlanetChunk::get_transparent_material);
 
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "material", PROPERTY_HINT_RESOURCE_TYPE, "SpatialMaterial,ShaderMaterial"), "set_material", "get_material");
 }
@@ -30,6 +31,28 @@ void PlanetChunk::set_material(const Ref<Material> &p_material) {
 
 Ref<Material> PlanetChunk::get_material() const {
 	return material;
+}
+
+void PlanetChunk::set_transparent_material(const Ref<Material> &p_material) {
+	if (transparent_material == p_material)
+		return;
+	transparent_material = p_material;
+	// _make_dirty();
+}
+
+Ref<Material> PlanetChunk::get_transparent_material() const {
+	return transparent_material;
+}
+
+void PlanetChunk::set_planet_data(const Ref<PlanetData> &p_planet_data) {
+	if (planetData == p_planet_data)
+		return;
+	planetData = p_planet_data;
+	// _make_dirty();
+}
+
+Ref<PlanetData> PlanetChunk::get_planet_data() const {
+	return planetData;
 }
 
 void PlanetChunk::_notification(int p_what) {
@@ -71,11 +94,11 @@ void PlanetChunk::_ready() {
 
 	float atlas_step = 1.0f / (float)(ATLAS_SIZE);
 
-	PoolVector3Array verts;
-	PoolVector2Array uvs;
-	PoolVector2Array uvs2;
-	PoolVector3Array normals;
-	PoolIntArray indices;
+	PoolVector3Array verts[2];
+	PoolVector2Array uvs[2];
+	PoolVector2Array uvs2[2];
+	PoolVector3Array normals[2];
+	PoolIntArray indices[2];
 
 	Vector3i chunk_offset = CHUNK_SIZE * chunkData->position.relative_position;
 	PlanetSide planet_side = chunkData->position.side;
@@ -98,23 +121,23 @@ void PlanetChunk::_ready() {
 		x_dir = Cube::side_axes[planet_side][Cube::SIDE_AXIS_X] * step;
 		z_dir = Cube::side_axes[planet_side][Cube::SIDE_AXIS_Z] * step;
 
-//		origin = x_dir * (float)(chunk_offset.x - half_voxel_count);
-//		origin += z_dir * (float)(chunk_offset.z - half_voxel_count);
-//		origin += y_dir;
-//
-//		// map position to sphere
-//		map_to_sphere(origin);
-//
-//		// now scale the vec to match the layer depth
-//		origin *= chunk_offset.y;
-//
-//		this->set_translation(origin);
+		//		origin = x_dir * (float)(chunk_offset.x - half_voxel_count);
+		//		origin += z_dir * (float)(chunk_offset.z - half_voxel_count);
+		//		origin += y_dir;
+		//
+		//		// map position to sphere
+		//		map_to_sphere(origin);
+		//
+		//		// now scale the vec to match the layer depth
+		//		origin *= chunk_offset.y;
+		//
+		//		this->set_translation(origin);
 	}
 
 	for (int layer = 0; layer < CHUNK_SIZE; layer++) {
 
 		if (chunk_offset.y == 0) {
-			face_voxel_count = (int) max_face_voxel_count(layer);
+			face_voxel_count = (int)max_face_voxel_count(layer);
 			half_voxel_count = face_voxel_count / 2;
 			step = 1.0f / (float)(half_voxel_count);
 
@@ -129,6 +152,12 @@ void PlanetChunk::_ready() {
 
 				if (block_type == BLOCK_AIR) {
 					continue;
+				}
+
+				int surface_index = 0;
+
+				if (block_type == BLOCK_WATER) {
+					surface_index = 1;
 				}
 
 				Vector3i block_pos = Vector3i(x, layer, z);
@@ -160,33 +189,18 @@ void PlanetChunk::_ready() {
 
 				for (int side = 0; side < Cube::SIDE_COUNT; side++) {
 
-					// todo properly cull sides here
+					BlockType neighbor_block_type = planetData->get_neighboring_block(chunkData, block_pos, static_cast<Cube::Directions>(side));
 
-					if (chunk_offset.y > 0) {
-						Vector3i neighbor_pos = block_pos + Cube::directions_i[side];
-
-						if (neighbor_pos.is_contained_in(Vector3i(0), Vector3i(CHUNK_SIZE))) {
-
-							// todo get neighbor blocks from other chunks
-							BlockType neighbor_block_type = chunkData->data[neighbor_pos.x][neighbor_pos.y][neighbor_pos.z];
-							// custom water culling
-							if (block_type == BLOCK_WATER) {
-
-								if (neighbor_block_type != BLOCK_AIR) {
-									continue;
-								}
-							} else if (neighbor_block_type != BLOCK_AIR && neighbor_block_type != BLOCK_WATER) {
-								continue;
-							}
-						} else {
-							continue;
-						}
+					if (block_type == BLOCK_WATER && neighbor_block_type != BLOCK_AIR) {
+						continue;
+					} else if (neighbor_block_type != BLOCK_AIR && neighbor_block_type != BLOCK_WATER) {
+						continue;
 					}
 
-					int offset = verts.size();
+					int offset = verts[surface_index].size();
 
 					for (int side_triangle : Cube::side_triangles) {
-						indices.append(offset + side_triangle);
+						indices[surface_index].append(offset + side_triangle);
 					}
 
 					// top-left of texture in the texture atlas
@@ -197,26 +211,26 @@ void PlanetChunk::_ready() {
 
 						Vector3 corner = mapped_corners_positions[Cube::side_indices[side][side_corner]];
 
-						verts.append(corner);
-						uvs.append(Cube::side_uvs[side_corner]);
+						verts[surface_index].append(corner);
+						uvs[surface_index].append(Cube::side_uvs[side_corner]);
 
 						// map block texture from atlas
-						uvs2.append(uv2_offset + (Cube::side_uvs[side_corner] * atlas_step));
+						uvs2[surface_index].append(uv2_offset + (Cube::side_uvs[side_corner] * atlas_step));
 
 						if (side == Cube::SIDE_UP) {
-							normals.append(corner.normalized());
+							normals[surface_index].append(corner.normalized());
 						} else if (side == Cube::SIDE_DOWN) {
-							normals.append(-corner.normalized());
+							normals[surface_index].append(-corner.normalized());
 						}
 					}
 
 					if (side != Cube::SIDE_UP && side != Cube::SIDE_DOWN) {
 						Vector3 norm = mapped_corners_positions[Cube::side_indices[side][2]]
 											   .cross(mapped_corners_positions[Cube::side_indices[side][0]]);
-						normals.append(norm);
-						normals.append(norm);
-						normals.append(norm);
-						normals.append(norm);
+						normals[surface_index].append(norm);
+						normals[surface_index].append(norm);
+						normals[surface_index].append(norm);
+						normals[surface_index].append(norm);
 					}
 				}
 			}
@@ -224,23 +238,42 @@ void PlanetChunk::_ready() {
 	}
 
 	// empty chunk
-	if (verts.empty())
+	if (verts[0].empty() && verts[1].empty())
 		return;
-
-	Array arrays;
-	arrays.resize(Mesh::ARRAY_MAX);
-
-	arrays[Mesh::ARRAY_VERTEX] = verts;
-	arrays[Mesh::ARRAY_TEX_UV] = uvs;
-	arrays[Mesh::ARRAY_TEX_UV2] = uvs2;
-	arrays[Mesh::ARRAY_NORMAL] = normals;
-	arrays[Mesh::ARRAY_INDEX] = indices;
 
 	Ref<ArrayMesh> mesh;
 	mesh.instance();
-	mesh->add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, arrays);
 
-	mesh->surface_set_material(0, material);
+	if (!verts[0].empty()) {
+
+		Array opaque_array;
+		opaque_array.resize(Mesh::ARRAY_MAX);
+
+		opaque_array[Mesh::ARRAY_VERTEX] = verts[0];
+		opaque_array[Mesh::ARRAY_TEX_UV] = uvs[0];
+		opaque_array[Mesh::ARRAY_TEX_UV2] = uvs2[0];
+		opaque_array[Mesh::ARRAY_NORMAL] = normals[0];
+		opaque_array[Mesh::ARRAY_INDEX] = indices[0];
+
+		mesh->add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, opaque_array);
+		mesh->surface_set_material(0, material);
+
+	}
+
+	if (!verts[1].empty()) {
+
+		Array transparent_array;
+		transparent_array.resize(Mesh::ARRAY_MAX);
+
+		transparent_array[Mesh::ARRAY_VERTEX] = verts[1];
+		transparent_array[Mesh::ARRAY_TEX_UV] = uvs[1];
+		transparent_array[Mesh::ARRAY_TEX_UV2] = uvs2[1];
+		transparent_array[Mesh::ARRAY_NORMAL] = normals[1];
+		transparent_array[Mesh::ARRAY_INDEX] = indices[1];
+
+		mesh->add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, transparent_array);
+		mesh->surface_set_material(verts[0].empty() ? 0 : 1, transparent_material);
+	}
 
 	set_mesh(*mesh);
 }
@@ -248,4 +281,3 @@ void PlanetChunk::_ready() {
 void PlanetChunk::_process() {
 	// print_line("_process");
 }
-

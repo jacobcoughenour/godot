@@ -1,9 +1,9 @@
 #ifndef CUBE_TABLES_H
 #define CUBE_TABLES_H
 
-#include <modules/planet/math/vector3i.h>
 #include <core/math/vector2.h>
 #include <core/math/vector3.h>
+#include <modules/planet/math/vector3i.h>
 
 namespace Cube {
 
@@ -57,7 +57,6 @@ extern const Vector3 directions[DIRECTION_COUNT];
 
 extern const Vector3i directions_i[DIRECTION_COUNT];
 
-
 enum Side {
 	SIDE_UP = 0,
 	SIDE_DOWN,
@@ -77,6 +76,8 @@ enum SideAxis {
 	SIDE_AXIS_COUNT
 };
 
+extern const Directions relative_side_directions[SIDE_COUNT][DIRECTION_COUNT];
+
 extern const Vector3 side_axes[SIDE_COUNT][SIDE_AXIS_COUNT];
 
 extern const int side_triangles[SIDE_COUNT];
@@ -84,6 +85,9 @@ extern const int side_triangles[SIDE_COUNT];
 extern const int side_indices[SIDE_COUNT][4];
 
 extern const Vector2 side_uvs[4];
+
+
+
 
 } // namespace Cube
 

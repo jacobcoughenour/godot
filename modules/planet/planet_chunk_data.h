@@ -20,6 +20,7 @@ enum BlockType {
 	BLOCK_STONE,
 	BLOCK_DIRT,
 	BLOCK_GRASS,
+	BLOCK_SAND,
 	BLOCK_WATER,
 
 	BLOCK_TYPE_COUNT
@@ -27,6 +28,7 @@ enum BlockType {
 
 static const int ATLAS_SIZE = 16;
 extern const unsigned char block_textures[BLOCK_TYPE_COUNT][Cube::DIRECTION_COUNT];
+extern const PlanetSide inverse_side_map[Cube::CORNER_COUNT][Cube::CORNER_COUNT - 1];
 
 static const int CHUNK_SIZE = 16;
 static const int CHUNK_BLOCK_COUNT = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE;
@@ -35,6 +37,14 @@ struct ChunkPosition {
 	PlanetSide side;
 	Vector3i relative_position;
 };
+
+_FORCE_INLINE_ bool operator<(const ChunkPosition &a, const ChunkPosition &b) {
+	if (a.side == b.side) {
+		return a.relative_position < b.relative_position;
+	} else {
+		return a.side < b.side;
+	}
+}
 
 struct ChunkData {
 	ChunkPosition position;
