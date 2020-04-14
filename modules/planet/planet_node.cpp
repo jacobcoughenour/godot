@@ -6,6 +6,8 @@
 
 PlanetNode::PlanetNode() :
 		material(0) {
+	visible_chunks = new Set<ChunkPosition>();
+	chunks_to_show_queue = new List<ChunkPosition>();
 }
 
 PlanetNode::~PlanetNode() {
@@ -15,6 +17,8 @@ void PlanetNode::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_camera", "camera"), &PlanetNode::set_camera);
 	ClassDB::bind_method(D_METHOD("get_camera"), &PlanetNode::get_camera);
+	ClassDB::bind_method(D_METHOD("set_sky_viewport", "sky_viewport"), &PlanetNode::set_sky_viewport);
+	ClassDB::bind_method(D_METHOD("get_sky_viewport"), &PlanetNode::get_sky_viewport);
 	ClassDB::bind_method(D_METHOD("set_data", "data"), &PlanetNode::set_data);
 	ClassDB::bind_method(D_METHOD("get_data"), &PlanetNode::get_data);
 	ClassDB::bind_method(D_METHOD("set_material", "material"), &PlanetNode::set_material);
@@ -23,6 +27,7 @@ void PlanetNode::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_transparent_material"), &PlanetNode::get_transparent_material);
 
 	ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, "camera", PROPERTY_HINT_RESOURCE_TYPE, "NodePath"), "set_camera", "get_camera");
+	ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, "sky_viewport", PROPERTY_HINT_RESOURCE_TYPE, "NodePath"), "set_sky_viewport", "get_sky_viewport");
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "data", PROPERTY_HINT_RESOURCE_TYPE, "PlanetData"), "set_data", "get_data");
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "material", PROPERTY_HINT_RESOURCE_TYPE, "SpatialMaterial,ShaderMaterial"), "set_material", "get_material");
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "transparent_material", PROPERTY_HINT_RESOURCE_TYPE, "SpatialMaterial,ShaderMaterial"), "set_transparent_material", "get_transparent_material");
@@ -37,6 +42,17 @@ void PlanetNode::set_camera(const NodePath &p_camera) {
 
 NodePath PlanetNode::get_camera() const {
 	return camera;
+}
+
+void PlanetNode::set_sky_viewport(const NodePath &p_sky_viewport) {
+	if (sky_viewport == p_sky_viewport)
+		return;
+	sky_viewport = p_sky_viewport;
+	_mark_dirty();
+}
+
+NodePath PlanetNode::get_sky_viewport() const {
+	return sky_viewport;
 }
 
 void PlanetNode::set_data(const Ref<PlanetData> &p_data) {
@@ -127,15 +143,20 @@ void PlanetNode::_ready() {
 
 	camera_node = (Camera*) get_node(camera);
 
+	if (sky_viewport.is_empty()) {
+		print_error("no sky viewport");
+		return;
+	}
+
 	SphereMesh *sphere = memnew(SphereMesh());
 	sphere->set_material(transparent_material);
-	sphere->set_radius(512);
-	sphere->set_height(1024);
+	sphere->set_radius(512 / CHUNK_SIZE);
+	sphere->set_height(1024 / CHUNK_SIZE);
 
 	MeshInstance *mesh = memnew(MeshInstance());
 	mesh->set_mesh(sphere);
 
-	add_child(mesh);
+	get_node(sky_viewport)->add_child(mesh);
 }
 
 
@@ -143,25 +164,25 @@ void PlanetNode::_process() {
 	float delta = get_process_delta_time();
 
 	time_since_last_update += delta;
+	time_since_last_lazy_load += delta;
 
-	if (time_since_last_update >= 0.2) {
-		show_chunks();
-
+	if (time_since_last_update >= 2.0) {
+		update_chunks_to_show();
 		time_since_last_update = 0;
 	}
 
-	if (_dirty && _mounted) {
+	if (time_since_last_lazy_load >= 2.0) {
+		lazy_load_chunks();
+		time_since_last_lazy_load = 0;
+	}
 
+	if (_dirty && _mounted) {
 		if (_loaded) {
 			unload_chunks();
 		}
-
-		show_chunks();
-
 		_loaded = true;
 		_dirty = false;
 	}
-
 }
 
 void PlanetNode::_mark_dirty() {
@@ -179,21 +200,45 @@ void PlanetNode::unload_chunks() {
 		chunk_renderers[side].clear();
 	}
 
-	visible_chunks.clear();
+	chunks_to_show_queue->clear();
+	visible_chunks->clear();
 
 	_loaded = false;
 }
 
-void PlanetNode::show_chunks() {
+void PlanetNode::lazy_load_chunks() {
+	float start = get_process_delta_time();
+	int count = 0;
+
+	while (!chunks_to_show_queue->empty()) {
+
+		auto chunk_pos = chunks_to_show_queue->front()->get();
+		show_chunk(chunk_pos);
+		count++;
+
+		// pop from queue
+		chunks_to_show_queue->pop_front();
+
+		// timeout
+		if (get_process_delta_time() - start >= 0.1f)
+			break;
+	}
+}
+
+static auto radius_sample_map = new List<Vector3*>();
+
+void PlanetNode::update_chunks_to_show() {
 
 	if (camera.is_empty()) {
 		print_error("no camera");
 		return;
 	}
 
-	if (camera_node == NULL) {
+	if (camera_node == NULL)
 		camera_node = (Camera*) get_node(camera);
-	}
+
+	if (camera_node == NULL)
+		return;
 
 	Vector3 camera_pos = camera_node->get_translation() - get_translation();
 
@@ -202,52 +247,52 @@ void PlanetNode::show_chunks() {
 
 	last_camera_position = camera_pos;
 
-	int render_distance = 8 * CHUNK_SIZE;
-	int render_distance_squared = render_distance * render_distance;
-	int chunk_step = CHUNK_SIZE / 2;
 
-	auto *chunks_to_show = new Set<ChunkPosition>();
+	// clear the queue
+	chunks_to_show_queue->clear();
 
-	Vector3 min = camera_pos - Vector3(render_distance, render_distance, render_distance);
-	Vector3 max = camera_pos + Vector3(render_distance, render_distance, render_distance);
+	if (radius_sample_map->empty()) {
 
-	for (int x = min.x; x < max.x; x += chunk_step) {
-		for (int y = min.y; y < max.y; y += chunk_step) {
-			for (int z = min.z; z < max.z; z += chunk_step) {
+//		OS::get_singleton()->print("empty\n");
 
-				Vector3 *wpos = new Vector3(x, y, z);
+		int distance = render_distance * CHUNK_SIZE;
+		float render_distance_squared = distance * distance;
+		int chunk_step = CHUNK_SIZE / 2;
 
-				if (wpos->distance_squared_to(camera_pos) > render_distance_squared)
-					continue;
-
-				ChunkPosition *cpos = PlanetData::get_chunk_position_at(*wpos);
-				chunks_to_show->insert(*cpos);
+		for (int x = -distance; x < distance; x += chunk_step) {
+			for (int y = -distance; y < distance; y += chunk_step) {
+				for (int z = -distance; z < distance; z += chunk_step) {
+					auto *p = new Vector3(x, y, z);
+					if (p->length_squared() <= render_distance_squared)
+						radius_sample_map->push_back(p);
+				}
 			}
 		}
-	}
 
-//	for(auto *E = visible_chunks.front(); E; E = E->next()) {
-//		ChunkPosition pos = E->get();
-//
-//		if (!chunks_to_show->has(pos)) {
-//			hide_chunk(pos);
+		radius_sample_map->sort();
+
+//		for(auto *E = radius_sample_map->front(); E; E = E->next()) {
+//			Vector3 *p = E->get();
+//			OS::get_singleton()->print("%f,%f,%f\n", p->x, p->y, p->z);
 //		}
-//	}
-
-	for(auto *E = chunks_to_show->front(); E; E = E->next()) {
-		ChunkPosition pos = E->get();
-
-		if (!visible_chunks.has(pos)) {
-			show_chunk(pos);
-		}
-
 	}
 
+	auto chunks_to_show_set = Set<ChunkPosition>();
+
+	for(auto *E = radius_sample_map->front(); E; E = E->next()) {
+		Vector3 pos = camera_pos + *E->get();
+		ChunkPosition *chunk_pos = PlanetData::get_chunk_position_at(pos);
+
+		if (!chunks_to_show_set.has(*chunk_pos)) {
+			chunks_to_show_set.insert(*chunk_pos);
+			chunks_to_show_queue->push_back(*chunk_pos);
+		}
+	}
 }
 
 void PlanetNode::show_chunk(ChunkPosition &chunk_pos) {
 
-	visible_chunks.insert(chunk_pos);
+	visible_chunks->insert(chunk_pos);
 
 	PlanetChunk *chunk;
 
@@ -289,7 +334,7 @@ void PlanetNode::show_chunk(ChunkPosition &chunk_pos) {
 
 void PlanetNode::hide_chunk(ChunkPosition &chunk_pos) {
 
-	visible_chunks.erase(chunk_pos);
+	visible_chunks->erase(chunk_pos);
 
 	PlanetChunk *chunk;
 
