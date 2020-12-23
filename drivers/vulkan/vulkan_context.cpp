@@ -277,6 +277,14 @@ Error VulkanContext::_initialize_extensions() {
 	// todo: should we fail if physical device properties 2 layer is not found?
 	// ERR_FAIL_COND_V_MSG(!props2ExtFound, ERR_CANT_CREATE, "No physical device properties 2 extension found, is a driver installed?");
 
+	if (!props2ExtFound) {
+		print_line(vformat("Missing instance extension required for ray tracing features: %s", VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME));
+		print_line("Vulkan ray tracing features disabled");
+
+		// disable ray tracing since we need device properties 2 to get rt_pipeline_props
+		VK_ray_tracing_enabled = false;
+	}
+
 	return OK;
 }
 
@@ -453,6 +461,49 @@ Error VulkanContext::_create_physical_device() {
 			}
 		}
 
+		if (VK_ray_tracing_enabled) {
+			static const uint32_t RT_EXT_COUNT = 6;
+			// all the device extensions required for raytracing to be enabled.
+			static const char *rt_extension_names[RT_EXT_COUNT] = {
+				VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
+				VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
+				VK_KHR_MAINTENANCE3_EXTENSION_NAME,
+				VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME,
+				VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
+				VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
+			};
+
+			// ensure all required extensions are supported by the device.
+			for (uint32_t i = 0; i < RT_EXT_COUNT; i++) {
+				bool found_extension = false;
+				for (uint32_t j = 0; j < device_extension_count; j++) {
+					if (!strcmp(rt_extension_names[i], device_extensions[j].extensionName)) {
+						found_extension = true;
+						break;
+					}
+				}
+				if (!found_extension) {
+					print_line(vformat(
+							"Missing device extension required for ray tracing features: %s", rt_extension_names[i]));
+					print_line("Vulkan ray tracing features disabled");
+					VK_ray_tracing_enabled = false;
+					break;
+				}
+			}
+
+			if (VK_ray_tracing_enabled) {
+				// append the raytracing extensions now
+				// that we know all of them are present.
+				for (uint32_t i = 0; i < RT_EXT_COUNT; i++) {
+					extension_names[enabled_extension_count++] = rt_extension_names[i];
+					if (enabled_extension_count >= MAX_EXTENSIONS) {
+						free(device_extensions);
+						ERR_FAIL_V_MSG(ERR_BUG, "Enabled extension count reaches MAX_EXTENSIONS, BUG");
+					}
+				}
+			}
+		}
+
 		free(device_extensions);
 	}
 
@@ -513,6 +564,9 @@ Error VulkanContext::_create_physical_device() {
 
 	// if props 2 doesn't exist we can fallback on props 1
 	if (FN_vkGetPhysicalDeviceProperties2 != nullptr) {
+		// set this to what other props we want to request.
+		// in this case we want the raytracing pipeline props.
+		gpu_props.pNext = &rt_pipeline_props;
 
 		// get device properties with raytracing pipeline properties.
 		FN_vkGetPhysicalDeviceProperties2(gpu, &gpu_props);
@@ -1609,6 +1663,11 @@ void VulkanContext::local_device_free(RID p_local_device) {
 
 VulkanContext::VulkanContext() {
 	use_validation_layers = Engine::get_singleton()->is_validation_layers_enabled();
+
+	// get project raytracing setting
+	// todo: should this be disabled by default?
+	// todo: would be nice to find a way to toggle this without having to restart...
+	VK_ray_tracing_enabled = GLOBAL_DEF_RST("rendering/vulkan/features/hardware_accelerated_ray_tracing", false);
 
 	command_buffer_queue.resize(1); // First one is always the setup command.
 	command_buffer_queue.write[0] = nullptr;

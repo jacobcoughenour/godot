@@ -51,6 +51,7 @@ class VulkanContext {
 	VkSurfaceKHR surface = VK_NULL_HANDLE;
 	VkPhysicalDevice gpu = VK_NULL_HANDLE;
 	VkPhysicalDeviceProperties2 gpu_props;
+	VkPhysicalDeviceRayTracingPipelinePropertiesKHR rt_pipeline_props;
 	uint32_t queue_family_count = 0;
 	VkQueueFamilyProperties *queue_props = nullptr;
 	VkDevice device = VK_NULL_HANDLE;
@@ -117,6 +118,8 @@ class VulkanContext {
 
 	bool VK_KHR_incremental_present_enabled = true;
 	bool VK_GOOGLE_display_timing_enabled = true;
+	bool VK_ray_tracing_enabled = false;
+
 	uint32_t enabled_extension_count = 0;
 	const char *extension_names[MAX_EXTENSIONS];
 
