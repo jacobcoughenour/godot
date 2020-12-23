@@ -50,7 +50,7 @@ class VulkanContext {
 	VkInstance inst = VK_NULL_HANDLE;
 	VkSurfaceKHR surface = VK_NULL_HANDLE;
 	VkPhysicalDevice gpu = VK_NULL_HANDLE;
-	VkPhysicalDeviceProperties gpu_props;
+	VkPhysicalDeviceProperties2 gpu_props;
 	uint32_t queue_family_count = 0;
 	VkQueueFamilyProperties *queue_props = nullptr;
 	VkDevice device = VK_NULL_HANDLE;

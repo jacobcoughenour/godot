@@ -223,6 +223,7 @@ Error VulkanContext::_initialize_extensions() {
 	/* Look for instance extensions */
 	VkBool32 surfaceExtFound = 0;
 	VkBool32 platformSurfaceExtFound = 0;
+	VkBool32 props2ExtFound = 0;
 	memset(extension_names, 0, sizeof(extension_names));
 
 	VkResult err = vkEnumerateInstanceExtensionProperties(nullptr, &instance_extension_count, nullptr);
@@ -245,6 +246,12 @@ Error VulkanContext::_initialize_extensions() {
 				platformSurfaceExtFound = 1;
 				extension_names[enabled_extension_count++] = _get_platform_surface_extension();
 			}
+
+			if (!strcmp(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME, instance_extensions[i].extensionName)) {
+				props2ExtFound = 1;
+				extension_names[enabled_extension_count++] = VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME;
+			}
+
 			if (!strcmp(VK_EXT_DEBUG_REPORT_EXTENSION_NAME, instance_extensions[i].extensionName)) {
 				if (use_validation_layers) {
 					extension_names[enabled_extension_count++] = VK_EXT_DEBUG_REPORT_EXTENSION_NAME;
@@ -266,6 +273,9 @@ Error VulkanContext::_initialize_extensions() {
 
 	ERR_FAIL_COND_V_MSG(!surfaceExtFound, ERR_CANT_CREATE, "No surface extension found, is a driver installed?");
 	ERR_FAIL_COND_V_MSG(!platformSurfaceExtFound, ERR_CANT_CREATE, "No platform surface extension found, is a driver installed?");
+
+	// todo: should we fail if physical device properties 2 layer is not found?
+	// ERR_FAIL_COND_V_MSG(!props2ExtFound, ERR_CANT_CREATE, "No physical device properties 2 extension found, is a driver installed?");
 
 	return OK;
 }
@@ -494,7 +504,22 @@ Error VulkanContext::_create_physical_device() {
 				break;
 		}
 	}
-	vkGetPhysicalDeviceProperties(gpu, &gpu_props);
+
+	auto FN_vkGetPhysicalDeviceProperties2 =
+			PFN_vkGetPhysicalDeviceProperties2(vkGetInstanceProcAddr(nullptr, "vkGetPhysicalDeviceProperties2"));
+
+	// we have to set this or bad things happen.
+	gpu_props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+
+	// if props 2 doesn't exist we can fallback on props 1
+	if (FN_vkGetPhysicalDeviceProperties2 != nullptr) {
+
+		// get device properties with raytracing pipeline properties.
+		FN_vkGetPhysicalDeviceProperties2(gpu, &gpu_props);
+	} else {
+		// fallback on vulkan 1.0 properties
+		vkGetPhysicalDeviceProperties(gpu, &gpu_props.properties);
+	}
 
 	/* Call with NULL data to get count */
 	vkGetPhysicalDeviceQueueFamilyProperties(gpu, &queue_family_count, nullptr);
@@ -1492,7 +1517,7 @@ VkFormat VulkanContext::get_screen_format() const {
 }
 
 VkPhysicalDeviceLimits VulkanContext::get_device_limits() const {
-	return gpu_props.limits;
+	return gpu_props.properties.limits;
 }
 
 RID VulkanContext::local_device_create() {
