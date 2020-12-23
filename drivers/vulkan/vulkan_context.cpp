@@ -283,6 +283,21 @@ Error VulkanContext::_create_physical_device() {
 		}
 	}
 
+	// get the current supported vulkan api version
+
+	// default to api version 1.0.0
+	// since vkEnumerateInstanceVersion was added in 1.1.x.
+	uint32_t vk_instance_api_version = VK_API_VERSION_1_0;
+
+	auto FN_vkEnumerateInstanceVersion =
+			PFN_vkEnumerateInstanceVersion(vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceVersion"));
+
+	if (FN_vkEnumerateInstanceVersion != nullptr && FN_vkEnumerateInstanceVersion(&vk_instance_api_version) == VK_SUCCESS) {
+		// trim the patch number from the end
+		vk_instance_api_version = VK_MAKE_VERSION(
+				VK_VERSION_MAJOR(vk_instance_api_version), VK_VERSION_MINOR(vk_instance_api_version), 0);
+	}
+
 	CharString cs = ProjectSettings::get_singleton()->get("application/config/name").operator String().utf8();
 	String name = "GodotEngine " + String(VERSION_FULL_NAME);
 	CharString namecs = name.utf8();
@@ -293,7 +308,7 @@ Error VulkanContext::_create_physical_device() {
 		/*applicationVersion*/ 0,
 		/*pEngineName*/ namecs.get_data(),
 		/*engineVersion*/ 0,
-		/*apiVersion*/ VK_API_VERSION_1_0,
+		/*apiVersion*/ vk_instance_api_version,
 	};
 	VkInstanceCreateInfo inst_info = {
 		/*sType*/ VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
