@@ -1,0 +1,3 @@
+[submodule "modules/godotsteam"]
+	path = modules/godotsteam
+	url = git@github.com:jacobcoughenour/GodotSteam.git
