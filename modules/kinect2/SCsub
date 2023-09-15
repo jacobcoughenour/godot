@@ -1,0 +1,17 @@
+Import('env')
+import os
+
+# kinect_sdk_dir = os.getenv("KINECTSDK20_DIR")
+kinect_sdk_dir = "C:/Program Files/Microsoft SDKs/Kinect/v2.0_1409"
+print("Using Kinect SDK from " + kinect_sdk_dir)
+kinect_headers_path = os.path.join(kinect_sdk_dir, "inc")
+kinect_lib_path = os.path.join(kinect_sdk_dir, "Lib", "x64")
+
+module_env = env.Clone()
+module_env.add_source_files(env.modules_sources, "*.cpp")
+module_env.Append(CCFLAGS=['-O2'])
+module_env.Append(CPPPATH=[kinect_headers_path])
+env.Append(LIBPATH=[kinect_lib_path])
+env.Append(LIBS=[os.path.join(kinect_lib_path, 'Kinect20.lib')])
+
+
