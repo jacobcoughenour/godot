@@ -1,0 +1,3 @@
+[submodule "modules/godotsteam"]
+	path = modules/godotsteam
+	url = https://github.com/CoaguCo-Industries/GodotSteam.git
