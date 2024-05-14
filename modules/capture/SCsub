@@ -1,0 +1,23 @@
+#!/usr/bin/env python
+
+Import("env")
+Import("env_modules")
+
+env_capture = env_modules.Clone()
+
+if env["platform"] == "windows":
+    import winreg
+
+    key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\v10.0", 0, winreg.KEY_READ)
+    windows_sdk_dir, _ = winreg.QueryValueEx(key, 'InstallationFolder')
+    sdk_version = "10.0.19041.0"
+    include_path = windows_sdk_dir + r"Include\\" + sdk_version
+    lib_path = windows_sdk_dir + r"Lib\\" + sdk_version
+
+    print(include_path)
+    print(lib_path)
+    
+    env_capture.Append(CPPPATH=[include_path + r"\um", include_path + r"\shared", include_path + r"\winrt"])
+    env_capture.Append(LIBPATH=[lib_path + r"\um\x64"])
+    env_capture.Append(LIBS=["d3d11", "dxgi", "winrt", "windowsapp"])
+    env_capture.add_source_files(env.modules_sources, "*.cpp")
