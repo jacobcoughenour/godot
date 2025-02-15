@@ -1,0 +1,6 @@
+[submodule "modules/godotsteam"]
+	path = modules/godotsteam
+	url = https://github.com/GodotSteam/GodotSteam.git
+[submodule "modules/godotsteam_multiplayer_peer"]
+	path = modules/godotsteam_multiplayer_peer
+	url = https://github.com/GodotSteam/MultiplayerPeer.git
