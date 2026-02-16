@@ -30,9 +30,9 @@ layout(location = 1) in vec4 axis_tangent_attrib;
 layout(location = 3) in vec4 color_attrib;
 #endif
 
-#ifdef UV_USED
+// #ifdef UV_USED
 layout(location = 4) in vec2 uv_attrib;
-#endif
+// #endif
 
 #if defined(UV2_USED) || defined(USE_LIGHTMAP) || defined(MODE_RENDER_MATERIAL)
 layout(location = 5) in vec2 uv2_attrib;
@@ -93,9 +93,9 @@ layout(location = 1) out vec3 normal_interp;
 layout(location = 2) out vec4 color_interp;
 #endif
 
-#ifdef UV_USED
+// #ifdef UV_USED
 layout(location = 3) out vec2 uv_interp;
-#endif
+// #endif
 
 #if defined(UV2_USED) || defined(USE_LIGHTMAP)
 layout(location = 4) out vec2 uv2_interp;
@@ -350,9 +350,9 @@ void vertex_shader(vec3 vertex_input,
 	vec3 binormal = binormal_input;
 #endif
 
-#ifdef UV_USED
+	// #ifdef UV_USED
 	uv_interp = uv_attrib;
-#endif
+	// #endif
 
 #if defined(UV2_USED) || defined(USE_LIGHTMAP)
 	uv2_interp = uv2_attrib;
@@ -880,9 +880,9 @@ layout(location = 1) in vec3 normal_interp;
 layout(location = 2) in vec4 color_interp;
 #endif
 
-#ifdef UV_USED
+// #ifdef UV_USED
 layout(location = 3) in vec2 uv_interp;
-#endif
+// #endif
 
 #if defined(UV2_USED) || defined(USE_LIGHTMAP)
 layout(location = 4) in vec2 uv2_interp;
@@ -1257,9 +1257,9 @@ void fragment_shader(in SceneData scene_data) {
 #endif // DO_SIDE_CHECK
 #endif // NORMAL_USED
 
-#ifdef UV_USED
+	// #ifdef UV_USED
 	vec2 uv = uv_interp;
-#endif
+	// #endif
 
 #if defined(UV2_USED) || defined(USE_LIGHTMAP)
 	vec2 uv2 = uv2_interp;
@@ -1311,6 +1311,14 @@ void fragment_shader(in SceneData scene_data) {
 	vec3 light_vertex = vertex;
 #endif //LIGHT_VERTEX_USED
 
+#ifdef TEXTURE_SIZE_USED
+	ivec2 texture_size;
+#endif //TEXTURE_SIZE_USED
+
+#ifdef LIGHT_UV_USED
+	vec2 light_uv = uv;
+#endif //LIGHT_UV_USED
+
 	mat3 model_normal_matrix;
 	if (bool(instances.data[instance_index].flags & INSTANCE_FLAGS_NON_UNIFORM_SCALE)) {
 		model_normal_matrix = transpose(inverse(mat3(read_model_matrix)));
@@ -1352,6 +1360,54 @@ void fragment_shader(in SceneData scene_data) {
 #ifdef LIGHT_TRANSMITTANCE_USED
 	transmittance_color.a *= sss_strength;
 #endif
+
+#ifdef TEXTURE_SIZE_USED
+	// snap the vertex to the texture coord before we calculate lighting
+	if (texture_size.x > 0 && texture_size.y > 0) {
+		vec4 texelSize = vec4(1.0 / vec2(texture_size), vec2(texture_size));
+#ifndef LIGHT_UV_USED
+		vec2 light_uv = uv;
+#endif
+		// crazy math i stole from someone on the unity forums
+		// https://github.com/keeborgue/UnityTexelShaders/blob/15d0f9848ff890da0b71727b26b1c972ba197711/Assets/Shaders/Texel/TexelFunctions.hlsl
+
+		// 1.) Calculate how much the texture UV coords need to
+		//     shift to be at the center of the nearest texel.
+		vec2 centerUV = floor(light_uv * (texelSize.zw)) / texelSize.zw + (texelSize.xy / 2.0);
+		vec2 dUV = (centerUV - light_uv);
+
+		// 2b.) Calculate how much the texture coords vary over fragment space.
+		//      This essentially defines a 2x2 matrix that gets
+		//      texture space (UV) deltas from fragment space (ST) deltas
+		// Note: I call fragment space (S,T) to disambiguate.
+		mat2 dUVdS = mat2(dFdx(light_uv), dFdy(light_uv));
+
+		// Calculate determinant
+		float det = dUVdS[0][0] * dUVdS[1][1] - dUVdS[0][1] * dUVdS[1][0];
+		// If determinant is too small, UV mapping is degenerate - skip snapping
+		// This fixes any flickering and NaN values when a texture is stretched
+		if (abs(det) > 1e-7) {
+			// 2c.) Invert the fragment from texture matrix
+			mat2 dSTdUV = inverse(dUVdS);
+
+			// 2d.) Convert the UV delta to a fragment space delta
+			vec2 dST = dSTdUV * dUV;
+
+			// 2e.) Calculate how much the world coords vary over fragment space.
+			vec3 dXYZdS = dFdx(vertex);
+			vec3 dXYZdT = dFdy(vertex);
+
+			// 2f.) Finally, convert our fragment space delta to a world space delta
+			// And be sure to clamp it to SOMETHING in case the derivative calc went insane
+			// Here I clamp it to -1 to 1 unit in unity, which should be orders of magnitude greater
+			// than the size of any texel.
+			vec3 dXYZ = dXYZdS * dST[0] + dXYZdT * dST[1];
+
+			// 3.) Transform the snapped UV back to world space
+			vertex = vertex + dXYZ;
+		}
+	}
+#endif //TEXTURE_SIZE_USED
 
 #ifdef LIGHT_VERTEX_USED
 	vertex = light_vertex;

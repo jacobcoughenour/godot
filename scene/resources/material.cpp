@@ -1492,6 +1492,16 @@ vec4 triplanar_texture(sampler2D p_sampler, vec3 p_weights, vec3 p_triplanar_pos
 	samp += texture(p_sampler, p_triplanar_pos.zy * vec2(-1.0, 1.0)) * p_weights.x;
 	return samp;
 }
+
+vec2 triplanar_shadow_uv(vec3 p_weights, vec3 p_triplanar_pos) {
+	// we have to pick an axis so we snap the weight vec to the nearest one
+	if (p_weights.z > p_weights.y && p_weights.z > p_weights.x) {
+		return p_triplanar_pos.xy;
+	} else if (p_weights.y > p_weights.z) {
+		return p_triplanar_pos.xz;
+	}
+	return p_triplanar_pos.zy * vec2(-1.0, 1.0);
+}
 )";
 	}
 
@@ -1607,9 +1617,15 @@ void fragment() {)";
 	vec4 albedo_tex = texture(texture_albedo, POINT_COORD);
 )";
 	} else {
+
+		code += R"(
+	TEXTURE_SIZE = textureSize(texture_albedo, 0);
+)";
+
 		if (flags[FLAG_UV1_USE_TRIPLANAR]) {
 			code += R"(
 	vec4 albedo_tex = triplanar_texture(texture_albedo, uv1_power_normal, uv1_triplanar_pos);
+	LIGHT_UV = triplanar_shadow_uv(uv1_power_normal, uv1_triplanar_pos);
 )";
 		} else {
 			code += R"(
